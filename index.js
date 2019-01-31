@@ -39,13 +39,8 @@ const difficultyMap = (scrambled, unscrambled) => {
 }
 
 const doesScrambleLookReal = (scrambled, type) => {
-  if (scrambled.length <= 1) {
-    return true;
-  }
-  if (type === 'not') {
-    return false;
-  }
-  const firstLetter = scrambled[0];
+  if (scrambled.length <= 1) return true;
+
   const secondLetter = scrambled[1];
   const thirdLetter = scrambled[2];
   const fourthLetter = scrambled[3];
@@ -58,64 +53,65 @@ const doesScrambleLookReal = (scrambled, type) => {
       return isVowel(secondLetter)
         ? doesScrambleLookReal( scrambledFrom2ndLetter, 'vowel' )
         : isVowel(thirdLetter)
-          ? doesScrambleLookReal( scrambledFrom1stLetter, 'conPair' )
-          : doesScrambleLookReal( scrambledFrom1stLetter, 'conTrip' );
+          ? doesScrambleLookReal( scrambledFrom1stLetter, 'consonantPair' )
+          : doesScrambleLookReal( scrambledFrom1stLetter, 'consonantTriple' );
     },
-    conTrip: () => {
+    consonantTriple: () => {
       const match = consonantTriplesRegEx.exec(scrambled);
       return match && match.index === 0 && isVowel(fourthLetter)
         ? doesScrambleLookReal( scrambledFrom4thLetter, 'vowel' )
-        : doesScrambleLookReal(scrambled, 'not');
+        : false;
     },
-    conPair: () => {
+    consonantPair: () => {
       const match = consonantDoublesAndPairsRegEx.exec(scrambled);
       return match && match.index === 0
         ? doesScrambleLookReal( scrambledFrom3rdLetter, 'vowel' )
-        : doesScrambleLookReal(scrambled, 'not');
+        : false;
     },
     vowel: () => {
       return isConsonant(secondLetter)
         ? doesScrambleLookReal( scrambledFrom2ndLetter, 'consonant' )
-        : doesScrambleLookReal( scrambledFrom1stLetter, 'vowPair' );
+        : doesScrambleLookReal( scrambledFrom1stLetter, 'vowelPair' );
     },
-    vowPair: () => {
+    vowelPair: () => {
       const match = vowelPairsRegex.exec(scrambled);
       return match && match.index === 0 && isConsonant(thirdLetter)
         ? doesScrambleLookReal( scrambledFrom3rdLetter, 'consonant' )
-        : doesScrambleLookReal(scrambled, 'not');
+        : false;
     },
   }
   return functions[type]();
 }
 
 isLetterInCorrectPlace = (scrambled, unscrambled, i) => scrambled[i] === unscrambled[i];
+isPairInCorrectPlace = (scrambled, unscrambled, i) => {
+  return isLetterInCorrectPlace(scrambled, unscrambled, i) && isLetterInCorrectPlace(scrambled, unscrambled, i + 1)
+}
 isFirstLetterCorrect = (scrambled, unscrambled) => isLetterInCorrectPlace(scrambled, unscrambled, 0);
 
 hasPairInCorrectPlace = (scrambled, unscrambled) => {
   const reduced = scrambled.split('').reduce((acc, cur, i) => {
-    if (i !== scrambled.length) {
-      if ( isLetterInCorrectPlace(scrambled, unscrambled, i) && isLetterInCorrectPlace(scrambled, unscrambled, i + 1) ) {
-        acc.pairInCorrectPlace = true;
-      }
-      return acc;
-    }
-  }, {pairInCorrectPlace: false});
+    return i <= scrambled.length - 2 && isPairInCorrectPlace(scrambled, unscrambled, i)
+      ? { ...acc, pairInCorrectPlace: true }
+      : acc;
+  }, { pairInCorrectPlace: false });
   return reduced.pairInCorrectPlace;
 }
 
 const areWordsEqual = (word1, word2) => word1 === word2;
+const areWordLengthsEqual = (word1, word2) => word1.length === word2.length;
 
 const determineScrambleDifficulty = str => {
   const [ scrambledWord, unscrambledWord ] = str.split(' ');
-  if (!wordsContainOnlyAcceptedCharacters(scrambledWord, unscrambledWord) ) {
+  // Edge cases
+  if ( !wordsContainOnlyAcceptedCharacters(scrambledWord, unscrambledWord) ) {
     return `Error: Must only use capital letters and no special characters or numbers. Your words: ${scrambledWord}, ${unscrambledWord}`;
   };
-  if (scrambledWord.length !== unscrambledWord.length) {
+  if ( !areWordLengthsEqual(scrambledWord, unscrambledWord) ) {
     return `Error: Words must be the same length. Your words: ${scrambledWord}, ${unscrambledWord}`;
   };
-
-  const sentenceMap = difficultyMap(scrambledWord, unscrambledWord);
-  const { getSentence } = sentenceMap;
+  // End of edge cases
+  const { getSentence } = difficultyMap(scrambledWord, unscrambledWord);
   if ( areWordsEqual(scrambledWord, unscrambledWord) ) return getSentence('not');
 
   const looksReal = isConsonant(scrambledWord[0])
@@ -125,11 +121,12 @@ const determineScrambleDifficulty = str => {
   const poor = !looksReal && firstLetterOr2ConsecLettersInPlace;
   const hard = looksReal && !firstLetterOr2ConsecLettersInPlace;
   const fair = !poor && !hard ? true : false;
+
   return !fair
     ? hard
       ? getSentence('hard')
       : getSentence('poor')
-    : getSentence('fair')
+    : getSentence('fair');
 }
 
 const getScrambleDifficulties = arr => {
